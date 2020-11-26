@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"net/http"
 	"os"
+	"text/template"
 	"time"
 )
 
@@ -32,73 +34,66 @@ func write() {
 		dataRAW.Status.Wind = rand.Intn(20)
 		jsonData, _ := json.Marshal(dataRAW)
 		err = ioutil.WriteFile("data.json", jsonData, 0644)
-
-		// _, err = file.Write(jsonData)
-
-		// if err != nil {
-		// 	return
-		// }
-
-		// err = file.Sync()
-		// if err != nil {
-		// 	return
-		// }
-
 		time.Sleep(time.Second * 15)
 	}
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
-	for {
-		fmt.Println("Page index called")
+	fmt.Println("Page index called")
 
-		var file, err = os.OpenFile(path, os.O_RDONLY, 0644)
-		if err != nil {
-			return
-		}
-		defer file.Close()
-
-		data, _ := ioutil.ReadAll(file)
-
-		var raw RAW
-
-		json.Unmarshal(data, &raw)
-
-		fmt.Fprintln(w, "Status")
-
-		var statusWater = raw.Status.Water
-		var statusWind = raw.Status.Wind
-
-		switch {
-		case (statusWater < 5):
-			fmt.Fprintln(w, "Water: Aman")
-		case (statusWater >= 6) && (statusWater <= 8):
-			fmt.Fprintln(w, "Water: Siaga")
-		case (statusWater > 8):
-			fmt.Fprintln(w, "Water: Bahaya")
-		}
-
-		switch {
-		case (statusWind < 6):
-			fmt.Fprintln(w, "Wind: Aman")
-		case (statusWind >= 7) && (statusWind <= 15):
-			fmt.Fprintln(w, "Wind: Siaga")
-		case (statusWind > 15):
-			fmt.Fprintln(w, "Wind: Bahaya")
-		}
-
-		// var t, _ = template.ParseFiles("template.html")
-		// if err != nil {
-		// 	return
-		// }
-		// var result = map[string]interface{}{
-		// 	"Water": statusWater,
-		// 	"Wind":  statusWind,
-		// }
-		// t.Execute(w, result)
-
-		time.Sleep(time.Second * 15)
+	var file, err = os.OpenFile(path, os.O_RDONLY, 0644)
+	if err != nil {
+		return
 	}
+	defer file.Close()
+
+	data, _ := ioutil.ReadAll(file)
+
+	var raw RAW
+
+	json.Unmarshal(data, &raw)
+
+	var StatusWater = raw.Status.Water
+	var StatusWind = raw.Status.Wind
+
+	type Status struct {
+		StatusWater string
+		StatusWind  string
+	}
+
+	const tpl = `
+		<html>
+			<meta http-equiv="refresh" content="15" />
+			<body>
+				Status Wind : {{.StatusWater}}
+				Status Water : {{.StatusWind}}
+			</body>
+		</html>
+	`
+	status := Status{}
+	switch {
+	case (StatusWater < 5):
+		status.StatusWater = "Aman"
+	case (StatusWater >= 6) && (StatusWater <= 8):
+		status.StatusWater = "Siaga"
+	case (StatusWater > 8):
+		status.StatusWater = "Bahaya"
+	}
+
+	switch {
+	case (StatusWind < 6):
+		status.StatusWind = "Aman"
+	case (StatusWind >= 7) && (StatusWind <= 15):
+		status.StatusWind = "Siaga"
+	case (StatusWind > 15):
+		status.StatusWind = "Bahaya"
+	}
+
+	tmplt, err := template.New("index").Parse(tpl)
+	if err != nil {
+		log.Fatal(err)
+	}
+	tmplt.Execute(w, status)
 }
 
 func init() {
